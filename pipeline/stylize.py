@@ -48,19 +48,24 @@ def _drop_optional_prev(graph: dict) -> dict:
 def _materialize_workflow(cfg: PipelineConfig, *,
                           input_image: str,
                           prev_stylized: str | None,
+                          keyframe_anchor: str | None,
                           out_prefix: str) -> dict:
     raw = Path(cfg.comfy_workflow).read_text()
     has_prev = prev_stylized is not None
+    prev_ref = prev_stylized or input_image
+    anchor_ref = keyframe_anchor or input_image
 
     init_latent_node = "32" if has_prev else "30"
 
     repl = {
         "__CKPT__": cfg.comfy_ckpt,
         "__CONTROLNET__": cfg.comfy_controlnet,
+        "__MODEL_FAMILY__": cfg.model_family,
         "__PROMPT__": cfg.prompt,
         "__NEG_PROMPT__": cfg.negative_prompt,
         "__INPUT_IMAGE__": input_image,
-        "__PREV_STYLIZED__": prev_stylized or "",
+        "__PREV_STYLIZED__": prev_ref,
+        "__KEYFRAME_ANCHOR__": anchor_ref,
         "__OUT_PREFIX__": out_prefix,
         "__INIT_LATENT_NODE__": init_latent_node,
         "__SAMPLER__": cfg.sampler,
@@ -175,19 +180,32 @@ def run_stage(cfg: PipelineConfig) -> int:
         old.unlink()
 
     client = ComfyClient(cfg.comfy_host)
-    prev_remote: str | None = None
+    remote_by_ordinal: dict[int, str] = {}
 
     for entry in tqdm(manifest["keyframes"], desc="stylize"):
         ord_ = entry["keyframe_ordinal"]
+        prev_ord = entry.get("prev_keyframe_ordinal")
+        anchor_ord = entry.get("anchor_keyframe_ordinal")
         local_in = frame_path(kf_dir, ord_)
         local_out = frame_path(out_dir, ord_)
 
         remote_in = client.upload_image(local_in,
                                         name=f"kf_{ord_:06d}.png")
+        prev_remote = (
+            remote_by_ordinal.get(prev_ord)
+            if cfg.use_prev_reference and prev_ord is not None
+            else None
+        )
+        anchor_remote = (
+            remote_by_ordinal.get(anchor_ord)
+            if cfg.use_anchor_reference and anchor_ord is not None
+            else None
+        )
         graph = _materialize_workflow(
             cfg,
             input_image=remote_in,
             prev_stylized=prev_remote,
+            keyframe_anchor=anchor_remote,
             out_prefix=f"styl_{ord_:06d}",
         )
         pid = client.queue_prompt(graph)
@@ -196,8 +214,8 @@ def run_stage(cfg: PipelineConfig) -> int:
 
         # The freshly produced image must be re-uploaded as input for the next
         # iteration so its name is reachable inside ComfyUI's input dir.
-        prev_remote = client.upload_image(local_out,
-                                          name=f"prev_{ord_:06d}.png")
+        remote_by_ordinal[ord_] = client.upload_image(local_out,
+                                                      name=f"prev_{ord_:06d}.png")
 
     log.info("stylized %d keyframes -> %s",
              len(manifest["keyframes"]), out_dir)

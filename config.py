@@ -26,6 +26,7 @@ class PipelineConfig:
 
     # ---- Sparse keyframes ----
     stride: int = 4                # S in the plan: AI runs on frames 0, S, 2S...
+    segment_anchor_interval: int = 120  # long-term scene anchor cadence in timeline frames
 
     # ---- Test gate ----
     test_mode: bool = False        # if True, only run on a 5s excerpt
@@ -33,6 +34,7 @@ class PipelineConfig:
     test_duration_sec: float = 5.0
 
     # ---- Stylization ----
+    model_family: str = "sdxl"     # "sdxl" (ControlNet path) or "flux" (multi-ref path)
     comfy_host: str = "127.0.0.1:8188"
     comfy_workflow: Path = Path("workflows/sdxl_img2img_canny.json")
     comfy_ckpt: str = "sd_xl_base_1.0.safetensors"
@@ -60,6 +62,8 @@ class PipelineConfig:
 
     # ---- Temporal conditioning ----
     prev_frame_blend: float = 0.35  # how much of previous stylized to mix into init latent
+    use_prev_reference: bool = True
+    use_anchor_reference: bool = True
 
     # ---- RIFE ----
     rife_repo: Path = Path("third_party/Practical-RIFE")
