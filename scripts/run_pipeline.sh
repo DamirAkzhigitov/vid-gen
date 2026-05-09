@@ -15,11 +15,23 @@ COMMON=(
   --width  "${WIDTH:-1280}"
   --height "${HEIGHT:-720}"
   --stride "${STRIDE:-4}"
+  --segment-anchor-interval "${ANCHOR_INTERVAL:-120}"
   --denoise "${DENOISE:-0.25}"
+  --model-family "${MODEL_FAMILY:-sdxl}"
   --comfy-host    "${COMFY_HOST:-127.0.0.1:8188}"
   --comfy-ckpt    "${COMFY_CKPT:-sd_xl_base_1.0.safetensors}"
   --comfy-controlnet "${COMFY_CONTROLNET:-controlnet-canny-sdxl-1.0.safetensors}"
 )
+
+if [[ -n "${WORKFLOW:-}" ]]; then
+  COMMON+=(--workflow "$WORKFLOW")
+fi
+if [[ "${NO_PREV_REFERENCE:-0}" == "1" ]]; then
+  COMMON+=(--no-prev-reference)
+fi
+if [[ "${NO_ANCHOR_REFERENCE:-0}" == "1" ]]; then
+  COMMON+=(--no-anchor-reference)
+fi
 
 echo "=== TEST RENDER (5s gate) ==="
 python -m pipeline.run "${COMMON[@]}" --test \

@@ -23,6 +23,12 @@ from .config import PipelineConfig
 from .utils import get_logger
 
 
+def _default_workflow(model_family: str) -> Path:
+    if model_family == "flux":
+        return Path("workflows/flux_img2img_multi_ref.json")
+    return Path("workflows/sdxl_img2img_canny.json")
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -34,6 +40,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=720)
     p.add_argument("--stride", type=int, default=4)
+    p.add_argument("--segment-anchor-interval", type=int, default=120,
+                   help="Long-term keyframe anchor cadence in timeline frames")
 
     p.add_argument("--test", action="store_true",
                    help="Run the gate: only process a 5s excerpt")
@@ -47,13 +55,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--prompt", type=str, default=None)
     p.add_argument("--neg-prompt", type=str, default=None)
     p.add_argument("--prev-blend", type=float, default=0.35)
+    p.add_argument("--model-family", choices=["sdxl", "flux"], default="sdxl")
+    p.add_argument("--no-prev-reference", action="store_true",
+                   help="Disable t-1 reference conditioning in stylize stage")
+    p.add_argument("--no-anchor-reference", action="store_true",
+                   help="Disable long-term scene anchor reference conditioning")
 
     p.add_argument("--comfy-host", default="127.0.0.1:8188")
     p.add_argument("--comfy-ckpt", default="sd_xl_base_1.0.safetensors")
     p.add_argument("--comfy-controlnet",
                    default="controlnet-canny-sdxl-1.0.safetensors")
-    p.add_argument("--workflow", type=Path,
-                   default=Path("workflows/sdxl_img2img_canny.json"))
+    p.add_argument("--workflow", type=Path, default=None,
+                   help="ComfyUI workflow template (defaults by model family)")
 
     p.add_argument("--rife-repo", type=Path,
                    default=Path("third_party/Practical-RIFE"))
@@ -69,19 +82,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def build_config(args: argparse.Namespace) -> PipelineConfig:
+    workflow = args.workflow or _default_workflow(args.model_family)
     cfg = PipelineConfig(
         input_video=args.input,
         work_dir=args.work,
         output_video=args.output,
         fps=args.fps, width=args.width, height=args.height,
         stride=args.stride,
+        segment_anchor_interval=args.segment_anchor_interval,
         test_mode=args.test,
         test_start_sec=args.test_start,
         test_duration_sec=args.test_duration,
         denoise=args.denoise, steps=args.steps, cfg=args.cfg, seed=args.seed,
         prev_frame_blend=args.prev_blend,
+        model_family=args.model_family,
+        use_prev_reference=not args.no_prev_reference,
+        use_anchor_reference=not args.no_anchor_reference,
         comfy_host=args.comfy_host,
-        comfy_workflow=args.workflow,
+        comfy_workflow=workflow,
         comfy_ckpt=args.comfy_ckpt,
         comfy_controlnet=args.comfy_controlnet,
         rife_repo=args.rife_repo,
