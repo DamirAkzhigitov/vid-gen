@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+work/
+out/
+third_party/
+*.mp4
+!**/test_5s_out.mp4.keep
+.idea
