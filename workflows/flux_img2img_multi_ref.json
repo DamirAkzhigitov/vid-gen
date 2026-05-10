@@ -1,5 +1,5 @@
 {
-  "_comment": "Template for FLUX-style multi-reference img2img. Export a known-good FLUX workflow from your ComfyUI install, then map these tokens to matching nodes/inputs in that graph.",
+  "_comment": "SCAFFOLD - NOT RUNNABLE AS-IS. The class_type 'FLUXReferenceConditioning' is a placeholder; replace it (and surrounding wiring) with the actual nodes from a known-good FLUX workflow exported from your ComfyUI install. Tokens to preserve: __CKPT__ __PROMPT__ __NEG_PROMPT__ __INPUT_IMAGE__ __PREV_STYLIZED__ __KEYFRAME_ANCHOR__ __OUT_PREFIX__ __SEED__ __STEPS__ __CFG__ __SAMPLER__ __SCHEDULER__ __DENOISE__.",
   "1": {
     "class_type": "UNETLoader",
     "inputs": {

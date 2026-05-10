@@ -29,6 +29,12 @@ def _default_workflow(model_family: str) -> Path:
     return Path("workflows/sdxl_img2img_canny.json")
 
 
+def _default_ckpt(model_family: str) -> str:
+    if model_family == "flux":
+        return "flux1-dev.safetensors"
+    return "sd_xl_base_1.0.safetensors"
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -62,7 +68,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Disable long-term scene anchor reference conditioning")
 
     p.add_argument("--comfy-host", default="127.0.0.1:8188")
-    p.add_argument("--comfy-ckpt", default="sd_xl_base_1.0.safetensors")
+    p.add_argument("--comfy-ckpt", default=None,
+                   help="Checkpoint filename in ComfyUI's models dir "
+                        "(defaults by model family)")
     p.add_argument("--comfy-controlnet",
                    default="controlnet-canny-sdxl-1.0.safetensors")
     p.add_argument("--workflow", type=Path, default=None,
@@ -83,6 +91,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def build_config(args: argparse.Namespace) -> PipelineConfig:
     workflow = args.workflow or _default_workflow(args.model_family)
+    ckpt = args.comfy_ckpt or _default_ckpt(args.model_family)
     cfg = PipelineConfig(
         input_video=args.input,
         work_dir=args.work,
@@ -100,7 +109,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         use_anchor_reference=not args.no_anchor_reference,
         comfy_host=args.comfy_host,
         comfy_workflow=workflow,
-        comfy_ckpt=args.comfy_ckpt,
+        comfy_ckpt=ckpt,
         comfy_controlnet=args.comfy_controlnet,
         rife_repo=args.rife_repo,
         rife_model=args.rife_model,

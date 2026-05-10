@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -36,9 +37,18 @@ from .utils import get_logger, frame_path
 # Workflow templating
 # ---------------------------------------------------------------------------
 
+_PLACEHOLDER_RE = re.compile(r"__[A-Z][A-Z0-9_]*__")
+
+
 def _drop_optional_prev(graph: dict) -> dict:
-    """Remove nodes flagged ``_optional_prev`` and rewire KSampler -> direct latent."""
-    g = {k: v for k, v in graph.items() if not v.get("_optional_prev")}
+    """Remove nodes flagged ``_optional_prev`` and rewire KSampler -> direct latent.
+
+    Specific to the SDXL workflow template, which marks the prev-frame branch
+    with ``_optional_prev: true`` so it can be stripped on the very first
+    keyframe (when there is no previous stylized output yet).
+    """
+    g = {k: v for k, v in graph.items()
+         if isinstance(v, dict) and not v.get("_optional_prev")}
     # KSampler should pull straight from VAEEncode of current frame (node 30)
     if "40" in g:
         g["40"]["inputs"]["latent_image"] = ["30", 0]
@@ -51,6 +61,7 @@ def _materialize_workflow(cfg: PipelineConfig, *,
                           keyframe_anchor: str | None,
                           out_prefix: str) -> dict:
     raw = Path(cfg.comfy_workflow).read_text()
+    template_tokens = set(_PLACEHOLDER_RE.findall(raw))
     has_prev = prev_stylized is not None
     prev_ref = prev_stylized or input_image
     anchor_ref = keyframe_anchor or input_image
@@ -60,7 +71,6 @@ def _materialize_workflow(cfg: PipelineConfig, *,
     repl = {
         "__CKPT__": cfg.comfy_ckpt,
         "__CONTROLNET__": cfg.comfy_controlnet,
-        "__MODEL_FAMILY__": cfg.model_family,
         "__PROMPT__": cfg.prompt,
         "__NEG_PROMPT__": cfg.negative_prompt,
         "__INPUT_IMAGE__": input_image,
@@ -91,12 +101,22 @@ def _materialize_workflow(cfg: PipelineConfig, *,
         raw = raw.replace(f'"{key}"', json.dumps(val))
 
     graph = json.loads(raw)
+    graph.pop("_comment", None)
     if not has_prev:
         graph = _drop_optional_prev(graph)
-    # _comment / _optional_prev are not real Comfy fields - strip them.
+    # _optional_prev is not a real Comfy field - strip it.
     for node in graph.values():
-        node.pop("_optional_prev", None)
-    graph.pop("_comment", None)
+        if isinstance(node, dict):
+            node.pop("_optional_prev", None)
+
+    known = set(repl) | set(numeric)
+    unresolved = sorted(t for t in template_tokens if t not in known)
+    if unresolved:
+        raise RuntimeError(
+            f"workflow {cfg.comfy_workflow} contains unknown placeholders: "
+            f"{', '.join(unresolved)}. Either remove them from the template or "
+            f"add a binding in stylize._materialize_workflow."
+        )
     return graph
 
 
@@ -118,7 +138,10 @@ class ComfyClient:
                 data={"overwrite": "true"},
                 timeout=60,
             )
-        r.raise_for_status()
+        if not r.ok:
+            raise RuntimeError(
+                f"ComfyUI /upload/image {r.status_code}: {r.text[:2000]}"
+            )
         return r.json()["name"]
 
     def queue_prompt(self, graph: dict) -> str:

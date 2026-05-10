@@ -61,15 +61,25 @@ python -m pipeline.run \
 
 ## Key consistency knobs
 
+Hold these constant between the 5s test gate and the full render so the test
+result actually predicts the full result.
+
 | Flag | Default | Why it matters |
 |------|---------|----------------|
-| `--model-family` | `sdxl` | Selects SDXL or FLUX-oriented workflow defaults. |
-| `--stride` | `4` | Keyframe spacing; higher lowers cost, increases interpolation load. |
-| `--segment-anchor-interval` | `120` | Long-term anchor cadence for scene consistency. |
-| `--denoise` | `0.25` | Keep low (0.15-0.35) to reduce flicker/drift. |
-| `--seed` | `1234` | Keep fixed per segment/job for stability. |
+| `--model-family` | `sdxl` | Selects SDXL or FLUX-oriented workflow + ckpt defaults. |
+| `--stride` | `4` | `S`. Keyframe spacing; larger = cheaper but assumes smoother motion. Try 2/4/8 for SDXL, 10-30 for FLUX. |
+| `--segment-anchor-interval` | `120` | Long-term anchor cadence (timeline frames) for scene consistency. |
+| `--denoise` | `0.25` | Plan target band 0.15-0.35. >0.5 risks morphing/flicker. |
+| `--prev-blend` | `0.35` | SDXL only: latent blend of previous stylized frame into init. Higher = stickier (less flicker, more smearing). |
+| `--seed` | `1234` | Held fixed for temporal stability. |
+| `--fps` / `--width` / `--height` | `30 / 1280 / 720` | Locked across the chain. |
 | `--no-prev-reference` | off | Disable short-term (`t-1`) reference conditioning. |
 | `--no-anchor-reference` | off | Disable long-term anchor reference conditioning. |
+
+## Re-running individual stages
+
+`--skip extract keyframes` etc. lets you iterate on stylize / RIFE / mux
+without re-decoding.
 
 ## FLUX migration notes
 

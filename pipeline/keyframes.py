@@ -29,13 +29,12 @@ def build_manifest(cfg: PipelineConfig, total_frames: int) -> dict:
         old.unlink()
 
     pairs = []  # list of (timeline_index, keyframe_ordinal)
-    anchor_ordinal = 0
-    anchor_timeline = indices[0]
+    # Anchor for keyframe k is the most recently *generated* keyframe that
+    # qualified as a segment anchor. We never set anchor == self, since the
+    # current frame's stylized output does not exist yet at conditioning time.
+    anchor_ordinal: int | None = None
+    last_anchor_timeline = indices[0]
     for ord_, idx in enumerate(indices):
-        if idx - anchor_timeline >= anchor_every:
-            anchor_ordinal = ord_
-            anchor_timeline = idx
-
         src = frame_path(frames_dir, idx)
         dst = frame_path(kf_dir, ord_)  # ordinal so ComfyUI sees a tight 0..N-1 range
         if not src.exists():
@@ -49,6 +48,12 @@ def build_manifest(cfg: PipelineConfig, total_frames: int) -> dict:
                 "anchor_keyframe_ordinal": anchor_ordinal,
             }
         )
+
+        # Promote this keyframe to be the next anchor *after* it has been
+        # appended, so subsequent frames see it as a reference.
+        if ord_ == 0 or idx - last_anchor_timeline >= anchor_every:
+            anchor_ordinal = ord_
+            last_anchor_timeline = idx
 
     manifest = {
         "stride": S,

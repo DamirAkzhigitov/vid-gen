@@ -29,9 +29,9 @@ def _interp_one(cfg: PipelineConfig, img0: Path, img1: Path,
         "--img", str(img0), str(img1),
         "--ratio", f"{ratio:.6f}",
         "--output", str(dst),
-        "--model", str(cfg.rife_model),
+        "--model", str(Path(cfg.rife_model).resolve()),
     ]
-    run(cmd, cwd=str(cfg.rife_repo))
+    run(cmd, cwd=str(Path(cfg.rife_repo).resolve()))
 
 
 def run_stage(cfg: PipelineConfig) -> int:
